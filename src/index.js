@@ -9,7 +9,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-const allowedOrigin = [
+const allowedOrigins = [
   "http://localhost:5173",
   "https://worldnumhub.vercel.app/",
 ];
