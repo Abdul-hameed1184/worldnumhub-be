@@ -11,22 +11,24 @@ const PORT = process.env.PORT || 8000;
 
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://worldnumhub.vercel.app/",
+  "https://worldnumhub.vercel.app",
 ];
 
 app.use(express.json());
 app.use(
   cors({
-    origin: function (origin, callback) {
+    origin: (origin, callback) => {
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
+        console.error("Blocked by CORS:", origin); // debug log
         callback(new Error("Not allowed by CORS"));
       }
     },
-    credentials: true, // if you're using cookies/auth headers
+    credentials: true,
   })
 );
+
 app.use(cookieParser());
 
 app.use("/api/auth", authRoutes);
