@@ -5,11 +5,11 @@ import cookieParser from "cookie-parser";
 import authRoutes from "../src/routes/auth.routes.js"
 import { connectDB } from "./lib/db.js";
 
+dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 8000;
 
 
-dotenv.config();
 
 app.use(express.json());
 app.use(
