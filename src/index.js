@@ -33,9 +33,9 @@ app.use(
 app.use(cookieParser());
 
 app.use("/api/auth", authRoutes); // Optional
-app.use("/api/transaction", (req, res) => {
-  res.status(200).json({ message: "Transaction endpoint is working" });
-});
+// app.use("/api/transaction", (req, res) => {
+//   res.status(200).json({ message: "Transaction endpoint is working" });
+// });
 app.use("/api/services", serviceRoutes);
 
 app.listen(PORT, () => {

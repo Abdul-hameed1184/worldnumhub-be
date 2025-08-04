@@ -1,7 +1,6 @@
 import fs from "fs/promises";
+import Transaction from "../models/transaction.model.js";
 
-// In-memory transactions (replace with DB in production)
-let transactions = [];
 
 export const getAllServices = async (req, res) => {
   try {
@@ -14,32 +13,49 @@ export const getAllServices = async (req, res) => {
   }
 };
 
-export const getTransactions = (req, res) => {
-  res.json(transactions);
+
+export const createTransaction = async (req, res) => {
+  const { service, amount, tx_ref, flw_ref, userId } = req.body;
+
+  try {
+    const txn = await Transaction.create({
+      service,
+      amount,
+      tx_ref,
+      flw_ref,
+      user: userId,
+    });
+
+    res.status(201).json({ ok: true, txn });
+  } catch (err) {
+    console.error("Create txn error:", err);
+    res.status(500).json({ message: "Failed to create transaction" });
+  }
 };
 
-export const createTransaction = (req, res) => {
-  const { service, amount, tx_ref, flw_ref } = req.body;
-  const txn = {
-    service,
-    amount,
-    tx_ref,
-    flw_ref,
-    status: "pending",
-    createdAt: new Date(),
-  };
-  transactions.push(txn);
-  res.json({ ok: true });
+// Get all transactions for a user
+export const getUserTransactions = async (req, res) => {
+  const userId = req.params.userId;
+
+  try {
+    const txns = await Transaction.find({ user: userId }).sort({ createdAt: -1 });
+    res.json(txns);
+  } catch (err) {
+    console.error("Fetch txns error:", err);
+    res.status(500).json({ message: "Failed to fetch transactions" });
+  }
 };
 
-export const flutterwaveWebhook = (req, res) => {
+// Webhook to update transaction status from Flutterwave
+export const flutterwaveWebhook = async (req, res) => {
   const { data } = req.body;
+
   if (data?.status === "successful") {
-    transactions = transactions.map((t) =>
-      t.tx_ref === data.tx_ref
-        ? { ...t, status: "successful", flw_ref: data.flw_ref }
-        : t
+    await Transaction.findOneAndUpdate(
+      { tx_ref: data.tx_ref },
+      { status: "successful", flw_ref: data.flw_ref }
     );
   }
+
   res.sendStatus(200);
 };
