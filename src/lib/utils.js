@@ -1,3 +1,4 @@
+import axios from "axios";
 import jwt from "jsonwebtoken";
 
 export const generateToken = (userId, res) => {
@@ -33,3 +34,13 @@ export async function sendEmail(to, subject, html) {
     html
   });
 }
+
+
+
+export const flutterwaveRequest = axios.create({
+  baseURL: "https://api.flutterwave.com/v3",
+  headers: {
+    Authorization: `Bearer ${process.env.FLW_SECRET_KEY}`, // use your real secret key in .env
+    "Content-Type": "application/json"
+  }
+});

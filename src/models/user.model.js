@@ -15,6 +15,7 @@ const userSchema = new mongoose.Schema({
       required: true,
       minlength: 6,
     },
+    balance: { type: Number, default: 0 },
 })
 
 
