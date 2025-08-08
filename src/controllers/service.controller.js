@@ -68,48 +68,69 @@ export const verifyTransaction = async (req, res) => {
   const tx_ref = req.params.tx_ref?.trim();
   console.log("Verifying tx_ref:", tx_ref);
 
+  if (!tx_ref) {
+    return res.status(400).json({ error: "Transaction reference is required" });
+  }
+
   try {
     // Match based on correct DB field name
-    const transaction = await Transaction.findOne({ tx_ref });
+    const transaction = await Transaction.findOne({ tx_ref }); // <-- Ensure schema has `tx_ref` exactly
     if (!transaction) {
       console.log("Transaction not found in DB");
       return res.status(404).json({ error: "Transaction not found" });
     }
-    console.log(transaction);
+
+    console.log("Transaction found in DB:", transaction);
+
     // Call Flutterwave verify endpoint using tx_ref
-    const response = await axios.get(
-      `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${tx_ref}`,
+    const flwRes = await axios.get(
+      `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(tx_ref)}`,
       {
         headers: {
           Authorization: `Bearer ${process.env.FLW_SECRET_KEY}`,
+          "Content-Type": "application/json",
         },
       }
     );
-    const { data } = response.data;
-    console.log("Flutterwave response:", data);
 
-    // Check if payment was successful
-    if (data.status === "successful" && data.amount === transaction.amount) {
+    const { data } = flwRes.data;
+    console.log("Flutterwave verification response:", data);
+
+    // Normalize amounts to numbers for comparison
+    const flutterwaveAmount = Number(data.amount);
+    const transactionAmount = Number(transaction.amount);
+
+    // Check if payment was successful and amount matches
+    if (data.status === "successful" && flutterwaveAmount === transactionAmount) {
       if (transaction.status !== "successful") {
         transaction.status = "successful";
         await transaction.save();
 
         // Update user wallet balance
         await User.findByIdAndUpdate(transaction.user, {
-          $inc: { balance: transaction.amount },
+          $inc: { balance: transactionAmount },
         });
+
+        console.log(`User ${transaction.user} wallet credited with ${transactionAmount}`);
       }
     } else {
       transaction.status = "failed";
       await transaction.save();
     }
 
-    res.json({ message: "Transaction verified", status: transaction.status });
+    return res.json({
+      message: "Transaction verified",
+      status: transaction.status,
+    });
   } catch (err) {
-    // console.error("Verification error:", err);
-    res.status(500).json({ error: "Failed to verify transaction" });
+    console.error("Verification error:", err.response?.data || err.message || err);
+    return res.status(500).json({
+      error: "Failed to verify transaction",
+      details: err.response?.data || err.message,
+    });
   }
 };
+
 
 export const fundWallet = async (req, res) => {
   const { userId, amount, email } = req.body;
