@@ -73,16 +73,14 @@ export const verifyTransaction = async (req, res) => {
   }
 
   try {
-    // Match based on correct DB field name
-    const transaction = await Transaction.findOne({ tx_ref }); // <-- Ensure schema has `tx_ref` exactly
+    const transaction = await Transaction.findOne({ tx_ref });
     if (!transaction) {
-      console.log("Transaction not found in DB");
       return res.status(404).json({ error: "Transaction not found" });
     }
 
     console.log("Transaction found in DB:", transaction);
 
-    // Call Flutterwave verify endpoint using tx_ref
+    // Call Flutterwave API to verify by reference
     const flwRes = await axios.get(
       `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(tx_ref)}`,
       {
@@ -96,30 +94,32 @@ export const verifyTransaction = async (req, res) => {
     const { data } = flwRes.data;
     console.log("Flutterwave verification response:", data);
 
-    // Normalize amounts to numbers for comparison
     const flutterwaveAmount = Number(data.amount);
     const transactionAmount = Number(transaction.amount);
 
-    // Check if payment was successful and amount matches
+    let message;
+
+    // Only success if BOTH status = "successful" AND amount matches
     if (data.status === "successful" && flutterwaveAmount === transactionAmount) {
       if (transaction.status !== "successful") {
         transaction.status = "successful";
         await transaction.save();
 
-        // Update user wallet balance
         await User.findByIdAndUpdate(transaction.user, {
           $inc: { balance: transactionAmount },
         });
 
-        console.log(`User ${transaction.user} wallet credited with ${transactionAmount}`);
+        console.log(`User ${transaction.user} wallet credited with ₦${transactionAmount}`);
       }
+      message = "Transaction verified successfully";
     } else {
       transaction.status = "failed";
       await transaction.save();
+      message = `Transaction failed (${data.status || "unknown reason"})`;
     }
 
     return res.json({
-      message: "Transaction verified",
+      message,
       status: transaction.status,
     });
   } catch (err) {
@@ -130,6 +130,8 @@ export const verifyTransaction = async (req, res) => {
     });
   }
 };
+
+
 
 
 export const fundWallet = async (req, res) => {

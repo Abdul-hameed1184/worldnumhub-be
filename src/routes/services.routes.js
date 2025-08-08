@@ -21,7 +21,7 @@ router.post("/", createTransaction);
 router.get("/user/:userId", getUserTransactions);
 router.post("/fund-wallet", fundWallet);
 router.post("/webhook", verifyFlutterwaveWebhook, webhook);
-router.get("/transactions", getUserTransactions);
+// router.get("/transactions", getUserTransactions);
 router.post("/transfer", transferFunds);
 
 export default router;
