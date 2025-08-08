@@ -129,13 +129,13 @@ export const fundWallet = async (req, res) => {
         tx_ref,
         amount,
         currency: "NGN",
-        redirect_url: "http://localhost:5173/payment-success", // change this to your frontend URL
+        redirect_url: `${process.env.FRONTEND_URL}/payment-success`,
         customer: {
           email,
         },
         customizations: {
           title: "Wallet Funding",
-          logo: "https://yourfrontend.com/logo.png", // your logo
+          logo: "../icon.png", // your logo
         },
       },
       {
