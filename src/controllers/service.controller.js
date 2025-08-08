@@ -75,31 +75,53 @@ export const verifyTransaction = async (req, res) => {
   try {
     const transaction = await Transaction.findOne({ tx_ref });
     if (!transaction) {
-      return res.status(404).json({ error: "Transaction not found" });
+      return res.status(404).json({ error: "Transaction not found in DB" });
     }
 
     console.log("Transaction found in DB:", transaction);
 
-    // Call Flutterwave API to verify by reference
-    const flwRes = await axios.get(
-      `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(tx_ref)}`,
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.FLW_SECRET_KEY}`,
-          "Content-Type": "application/json",
-        },
+    let flwRes;
+
+    try {
+      flwRes = await axios.get(
+        `https://api.flutterwave.com/v3/transactions/verify_by_reference?tx_ref=${encodeURIComponent(tx_ref)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.FLW_SECRET_KEY}`,
+          },
+        }
+      );
+    } catch (err) {
+      const flwError = err.response?.data;
+      console.error("Flutterwave verification error:", flwError || err.message);
+
+      // If Flutterwave says transaction doesn't exist → mark failed
+      if (
+        flwError?.status === "error" &&
+        flwError?.message?.includes("No transaction was found")
+      ) {
+        transaction.status = "failed";
+        await transaction.save();
+
+        return res.json({
+          message: "Transaction marked as failed (not found on Flutterwave)",
+          status: "failed",
+        });
       }
-    );
+
+      return res.status(500).json({
+        error: "Failed to verify transaction",
+        details: flwError || err.message,
+      });
+    }
 
     const { data } = flwRes.data;
-    console.log("Flutterwave verification response:", data);
+    console.log("Flutterwave response:", data);
 
     const flutterwaveAmount = Number(data.amount);
     const transactionAmount = Number(transaction.amount);
 
-    let message;
-
-    // Only success if BOTH status = "successful" AND amount matches
+    // 1️⃣ Successful payment
     if (data.status === "successful" && flutterwaveAmount === transactionAmount) {
       if (transaction.status !== "successful") {
         transaction.status = "successful";
@@ -108,22 +130,25 @@ export const verifyTransaction = async (req, res) => {
         await User.findByIdAndUpdate(transaction.user, {
           $inc: { balance: transactionAmount },
         });
-
-        console.log(`User ${transaction.user} wallet credited with ₦${transactionAmount}`);
       }
-      message = "Transaction verified successfully";
-    } else {
+    }
+    // 2️⃣ Cancelled by user on payment page
+    else if (data.status === "cancelled") {
+      transaction.status = "cancelled";
+      await transaction.save();
+    }
+    // 3️⃣ Any other state → failed
+    else {
       transaction.status = "failed";
       await transaction.save();
-      message = `Transaction failed (${data.status || "unknown reason"})`;
     }
 
     return res.json({
-      message,
+      message: "Transaction verified",
       status: transaction.status,
     });
   } catch (err) {
-    console.error("Verification error:", err.response?.data || err.message || err);
+    console.error("Verification error:", err.response?.data || err.message);
     return res.status(500).json({
       error: "Failed to verify transaction",
       details: err.response?.data || err.message,
@@ -186,6 +211,7 @@ export const fundWallet = async (req, res) => {
       tx_ref: tx_ref,
       service: "fund-wallet",
     });
+    
 
     res.status(200).json({ link: paymentLink });
   } catch (err) {
